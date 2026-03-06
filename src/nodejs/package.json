@@ -1,0 +1,16 @@
+{
+  "name": "legal-intake-voice-node",
+  "version": "0.1.0",
+  "description": "Node.js component for Legal Intake Voice Service (e.g. Twilio Media Streams)",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test websocket_server.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
