@@ -11,6 +11,8 @@ const {
   stripWavHeaderIfPresent,
   streamChunksAsBase64,
   synthesize,
+  synthesizeAndStream,
+  synthesizeWithRetry,
   DEFAULT_LANGUAGE,
   DEFAULT_VOICE,
   TWILIO_SAMPLE_RATE,
@@ -113,5 +115,35 @@ describe('tts_client', () => {
       () => synthesize(mockClient, { input: { text: 'Hi' }, voice: {}, audioConfig: {} }),
       /empty audio/
     );
+  });
+
+  it('synthesizeAndStream sends chunks to onChunk callback', async () => {
+    const mulawSamples = Buffer.alloc(400);
+    const mockClient = {
+      synthesizeSpeech: async () => [{ audioContent: mulawSamples }],
+    };
+    const chunks = [];
+    await synthesizeAndStream(mockClient, 'Hello', (b64) => chunks.push(b64), { chunkSize: 160 });
+    assert.ok(chunks.length >= 2);
+    const totalLen = chunks.reduce((acc, b64) => acc + Buffer.from(b64, 'base64').length, 0);
+    assert.strictEqual(totalLen, 400);
+  });
+
+  it('synthesizeWithRetry retries on retryable error then succeeds', async () => {
+    let callCount = 0;
+    const mockClient = {
+      synthesizeSpeech: async () => {
+        callCount++;
+        if (callCount === 1) {
+          const err = new Error('Unavailable');
+          err.code = 14;
+          throw err;
+        }
+        return [{ audioContent: Buffer.alloc(80) }];
+      },
+    };
+    const out = await synthesizeWithRetry(mockClient, { input: { text: 'Hi' }, voice: {}, audioConfig: {} }, 2);
+    assert.strictEqual(callCount, 2);
+    assert.strictEqual(out.length, 80);
   });
 });
