@@ -165,6 +165,8 @@ docker run --rm -p 8080:8080 \
 | `GOOGLE_APPLICATION_CREDENTIALS` | For STT/TTS (Node.js) | — | Path to service account JSON key. When set, caller audio is streamed to Speech-to-Text and TTS can synthesize replies. If unset, the Node app still runs (WebSocket and `/voice`) but does not transcribe or speak. |
 | `GOOGLE_CLOUD_PROJECT` | For Gemini (Node.js) | — | GCP project ID. When set with credentials, Vertex AI (Gemini 1.5 Flash) is used for conversational logic. |
 | `GOOGLE_TTS_VOICE_NAME` | No (Node.js) | `en-US-Neural2-D` | TTS voice name; set to Custom Voice name when using attorney voice clone. |
+| `ATTORNEY_NAME` | No (Node.js) | `the attorney` | Name used in the mandatory AI disclosure greeting played at call start. |
+| `RAG_CONFIG_DIR` | No (Node.js) | (auto) | Path to RAG config directory (intake guidelines, deflection scripts). Default: `config/rag` relative to project root. |
 | `PORT` | No (Node.js) | `8080` | HTTP/WebSocket port for the Node.js voice component. |
 | Google Cloud / etc. | When used | — | Credentials for STT, Gemini, TTS, DLP. |
 

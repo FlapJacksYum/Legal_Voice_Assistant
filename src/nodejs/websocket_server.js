@@ -38,12 +38,14 @@ function validateConnection(request) {
 /**
  * Create and return a WebSocket server bound to the given HTTP server.
  * @param {import('http').Server} server - HTTP server (e.g. from createServer())
- * @param {object} options - { path: string, port: number }
+ * @param {object} options - { path: string, onMediaChunk: (ws, base64Payload) => void }
  * @returns {import('ws').WebSocketServer}
  */
 function createMediaWebSocketServer(server, options = {}) {
   const path = (options.path ?? DEFAULT_PATH).replace(/\/+$/, '') || '/';
   const pathMatch = path.startsWith('/') ? path : `/${path}`;
+  const onMediaChunk = options.onMediaChunk;
+
   const wss = new WebSocketServer({
     server,
     path: pathMatch,
@@ -80,6 +82,9 @@ function createMediaWebSocketServer(server, options = {}) {
             sequenceNumber: msg.sequenceNumber,
             timestamp: msg.media.timestamp,
           });
+          if (typeof onMediaChunk === 'function') {
+            onMediaChunk(ws, msg.media.payload);
+          }
         }
       } catch (err) {
         log('error', 'Message handling error', { error: err.message });

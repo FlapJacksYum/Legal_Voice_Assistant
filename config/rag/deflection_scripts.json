@@ -1,0 +1,15 @@
+{
+  "deflections": [
+    {
+      "id": "legal_advice",
+      "trigger": "caller asks for legal advice, case outcome, or recommendation",
+      "script": "That's an important question. I'll make a note of it so the attorney can review your situation and get back to you with a precise answer. For now, may I ask..."
+    },
+    {
+      "id": "upl_general",
+      "trigger": "caller asks whether to file, what will happen, or what they should do legally",
+      "script": "I'm not able to give legal advice. The attorney will review everything we discuss and can answer that when they speak with you. Let me note that question. In the meantime..."
+    }
+  ],
+  "instructions": "When you detect a request for legal advice, use one of the scripts above (or similar wording), then redirect to information gathering. Include [deflect_upl] in your response so the system can tag the question for attorney review."
+}

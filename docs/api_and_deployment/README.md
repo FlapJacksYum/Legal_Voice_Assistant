@@ -14,6 +14,7 @@ This directory contains documentation for the **Legal Intake Voice Service** (So
 | [api_endpoints.md](api_endpoints.md) | API reference for the `/api/calls` endpoint: authentication, request/response schemas, and examples. |
 | [deployment_guide.md](deployment_guide.md) | Prerequisites, Docker build and run, production deployment, configuration (incl. Twilio and STT), logging, monitoring, and scaling. |
 | [../setup/twilio_media_streams.md](../setup/twilio_media_streams.md) | Twilio account, phone number, and Media Streams webhook setup for the Node.js voice component. |
+| [../ai_config/gemini_prompts_rag.md](../ai_config/gemini_prompts_rag.md) | Gemini system prompt, RAG content (intake guidelines, deflection scripts), and updating conversational logic. |
 
 ## Audience
 

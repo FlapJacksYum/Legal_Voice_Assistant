@@ -68,7 +68,9 @@ Set these in your environment (e.g. `.env` or your deployment config). **Do not 
 | `GOOGLE_APPLICATION_CREDENTIALS` | No (for STT/TTS) | Path to Google Cloud service account JSON key. When set, caller audio is streamed to Speech-to-Text and TTS can synthesize responses. See [Deployment guide](../api_and_deployment/deployment_guide.md#configuration). |
 | `GOOGLE_CLOUD_PROJECT` | No (for Gemini) | GCP project ID. When set with credentials, Vertex AI (Gemini 1.5 Flash) is used for conversational logic; transcriptions are sent to Gemini and replies are synthesized and played to the caller. |
 | `GOOGLE_TTS_VOICE_NAME` | No | TTS voice name (e.g. Custom Voice for attorney clone). Default: `en-US-Neural2-D`. Set when using a pre-trained Custom Voice model. |
+| `ATTORNEY_NAME` | No | Name used in the mandatory AI disclosure greeting (e.g. "Jane Smith"). Default: "the attorney". The greeting states that the caller has reached the office and is speaking with the attorney's AI intake assistant. |
 
+- When a call connects, the app plays a **mandatory AI disclosure greeting** in the configured TTS voice (or default). The greeting can be **interrupted** by the caller—as soon as the caller speaks, the greeting stops and the conversation (STT → Gemini → TTS) begins.
 - The Node.js Media Streams server does not use Account SID/Auth Token for the WebSocket connection itself; Twilio connects to you. Store them for future features (e.g. REST API to control calls) and for consistency with the task “Set up Twilio Account SID and Auth Token as environment variables.”
 - For local development, use a tunnel (e.g. [ngrok](https://ngrok.com)) so Twilio can reach both your HTTPS and WebSocket endpoints.
 
@@ -86,6 +88,7 @@ Set these in your environment (e.g. `.env` or your deployment config). **Do not 
 3. Call your Twilio number from a phone.
 4. You should see:
    - In the app logs: WebSocket connection opened, then `Stream started` and media events from Twilio.
+   - The app plays the **AI disclosure greeting** (TTS) as soon as the stream starts. If the caller speaks during the greeting, it is interrupted and the conversation begins.
    - If STT is enabled: `[STT] Interim:` and `[STT] Final:` lines with transcribed speech.
    - If Gemini is enabled: `[Gemini]:` with the AI reply; TTS streams the reply back to the caller as audio.
 

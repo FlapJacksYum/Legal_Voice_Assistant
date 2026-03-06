@@ -20,10 +20,12 @@ const {
   generateResponseWithRetry,
   createConversationContext,
 } = require('./gemini_client.js');
+const { getSystemInstruction } = require('./gemini_prompt_manager.js');
 const {
   createTtsClient,
   synthesizeAndStream,
 } = require('./tts_client.js');
+const { getGreetingText } = require('./greeting.js');
 
 const PORT = Number(process.env.PORT) || DEFAULT_PORT;
 
@@ -40,7 +42,8 @@ let geminiModel = null;
 if (process.env.GOOGLE_CLOUD_PROJECT && process.env.GOOGLE_APPLICATION_CREDENTIALS) {
   try {
     const vertex = createVertexAI({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
-    geminiModel = getGenerativeModel(vertex);
+    const systemInstruction = getSystemInstruction();
+    geminiModel = getGenerativeModel(vertex, { systemInstruction });
   } catch (err) {
     console.warn('Gemini disabled: could not create Vertex AI model:', err.message);
   }
@@ -57,6 +60,8 @@ if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
 
 const sttStreamsByWs = new Map();
 const geminiContextByWs = new Map();
+/** @type {Map<import('ws').WebSocket, { greetingInProgress: boolean, greetingAborted: boolean }>} */
+const greetingStateByWs = new Map();
 
 function onMediaChunk(ws, base64Payload) {
   let session = sttStreamsByWs.get(ws);
@@ -67,10 +72,15 @@ function onMediaChunk(ws, base64Payload) {
       conversation = createConversationContext();
       geminiContextByWs.set(ws, conversation);
     }
+    const greetingState = { greetingInProgress: true, greetingAborted: false };
+    greetingStateByWs.set(ws, greetingState);
+
     session = startStreamingRecognizeWithRetry(speechClient, {}, {
       onTranscript: async (text, isFinal) => {
         console.log(`[STT] ${isFinal ? 'Final' : 'Interim'}: ${text}`);
         if (isFinal && text && geminiModel) {
+          const state = greetingStateByWs.get(ws);
+          if (state && state.greetingInProgress) state.greetingAborted = true;
           const conversation = geminiContextByWs.get(ws);
           if (conversation) {
             conversation.appendUser(text);
@@ -96,6 +106,7 @@ function onMediaChunk(ws, base64Payload) {
               console.error('[Gemini] error:', err.message);
             }
           }
+          if (state) state.greetingInProgress = false;
         }
       },
       onError: (err) => {
@@ -103,6 +114,23 @@ function onMediaChunk(ws, base64Payload) {
       },
     });
     sttStreamsByWs.set(ws, session);
+
+    if (ttsClient) {
+      const greetingText = getGreetingText();
+      synthesizeAndStream(ttsClient, greetingText, (base64) => {
+        const s = greetingStateByWs.get(ws);
+        if (s && !s.greetingAborted) sendAudioChunk(ws, base64);
+      }).then(() => {
+        const s = greetingStateByWs.get(ws);
+        if (s) s.greetingInProgress = false;
+      }).catch((err) => {
+        console.error('[TTS] greeting error:', err.message);
+        const s = greetingStateByWs.get(ws);
+        if (s) s.greetingInProgress = false;
+      });
+    } else {
+      greetingState.greetingInProgress = false;
+    }
   }
   session.writeAudioChunk(base64Payload);
 }
@@ -114,6 +142,7 @@ function onWsClose(ws) {
     sttStreamsByWs.delete(ws);
   }
   geminiContextByWs.delete(ws);
+  greetingStateByWs.delete(ws);
 }
 
 /**

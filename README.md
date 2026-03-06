@@ -12,7 +12,11 @@ AI-driven intake service for a bankruptcy law practice: automates initial client
 │   │   ├── websocket_server.js   # Twilio Media Streams WebSocket handler
 │   │   ├── stt_client.js         # Google Cloud Speech-to-Text streaming client
 │   │   ├── gemini_client.js      # Vertex AI Gemini 1.5 Flash for conversational logic
+│   │   ├── gemini_prompt_manager.js  # System prompt + RAG (intake guidelines, deflection scripts)
+│   │   ├── greeting.js           # Mandatory AI disclosure greeting (configurable attorney name)
 │   │   └── tts_client.js         # Google Cloud Text-to-Speech (Custom Voice) for playback
+│   ├── config/
+│   │   └── rag/         # RAG content for Gemini (intake_guidelines.md, deflection_scripts.json)
 │   └── database.py      # DB engine and session
 ├── migrations/          # Alembic migrations
 ├── tests/               # Pytest tests (Python)
@@ -85,6 +89,8 @@ cd src/nodejs && npm install && npm start
 #   GOOGLE_APPLICATION_CREDENTIALS — path to service account JSON (STT, TTS)
 #   GOOGLE_CLOUD_PROJECT — GCP project ID (Gemini / Vertex AI)
 #   GOOGLE_TTS_VOICE_NAME — optional; Custom Voice name when using cloned attorney voice
+# Optional: ATTORNEY_NAME — name used in the AI disclosure greeting (default: "the attorney")
+# Optional: RAG_CONFIG_DIR — path to RAG files (default: config/rag with intake guidelines and deflection scripts)
 ```
 
 Or with Docker:
@@ -104,6 +110,7 @@ See [docs/api_and_deployment/deployment_guide.md](docs/api_and_deployment/deploy
 |-----|-------------|
 | [docs/api_and_deployment/](docs/api_and_deployment/) | API reference and deployment guide |
 | [docs/setup/twilio_media_streams.md](docs/setup/twilio_media_streams.md) | Twilio account, phone number, and Media Streams webhook setup |
+| [docs/ai_config/gemini_prompts_rag.md](docs/ai_config/gemini_prompts_rag.md) | Gemini system prompt, RAG content, and how to update conversational logic |
 | [.env.example](.env.example) | Example environment variables (copy to `.env`; do not commit `.env`) |
 
 ## License and compliance
