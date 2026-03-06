@@ -1,6 +1,6 @@
 /**
  * Legal Intake Voice Service — Node.js component.
- * Runs the Twilio Media Streams WebSocket server for real-time audio.
+ * Runs the Twilio Media Streams WebSocket server and optional Google Cloud STT streaming.
  */
 
 const http = require('http');
@@ -9,8 +9,48 @@ const {
   DEFAULT_PORT,
   DEFAULT_PATH,
 } = require('./websocket_server.js');
+const {
+  createSpeechClient,
+  startStreamingRecognizeWithRetry,
+} = require('./stt_client.js');
 
 const PORT = Number(process.env.PORT) || DEFAULT_PORT;
+
+let speechClient = null;
+if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  try {
+    speechClient = createSpeechClient();
+  } catch (err) {
+    console.warn('STT disabled: could not create Speech client:', err.message);
+  }
+}
+
+const sttStreamsByWs = new Map();
+
+function onMediaChunk(ws, base64Payload) {
+  let session = sttStreamsByWs.get(ws);
+  if (!session) {
+    if (!speechClient) return;
+    session = startStreamingRecognizeWithRetry(speechClient, {}, {
+      onTranscript: (text, isFinal) => {
+        console.log(`[STT] ${isFinal ? 'Final' : 'Interim'}: ${text}`);
+      },
+      onError: (err) => {
+        console.error('[STT] error:', err.message);
+      },
+    });
+    sttStreamsByWs.set(ws, session);
+  }
+  session.writeAudioChunk(base64Payload);
+}
+
+function onWsClose(ws) {
+  const session = sttStreamsByWs.get(ws);
+  if (session) {
+    session.end();
+    sttStreamsByWs.delete(ws);
+  }
+}
 
 /**
  * Build TwiML that connects the call to our Media Streams WebSocket (bidirectional).
@@ -46,7 +86,13 @@ const server = http.createServer((req, res) => {
   res.end();
 });
 
-createMediaWebSocketServer(server, { path: DEFAULT_PATH });
+const wss = createMediaWebSocketServer(server, {
+  path: DEFAULT_PATH,
+  onMediaChunk: speechClient ? onMediaChunk : undefined,
+});
+wss.on('connection', (ws) => {
+  ws.on('close', () => onWsClose(ws));
+});
 
 server.listen(PORT, () => {
   console.log(`Legal Intake Voice Service — Node.js listening on port ${PORT}`);
