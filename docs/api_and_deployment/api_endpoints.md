@@ -4,9 +4,11 @@ This document describes the public-facing API of the Legal Intake Voice Service.
 
 ## Overview
 
-- **Base URL (local):** `http://localhost:8000` (or the host/port where the application is running)
+- **Base URL (local):** `http://localhost:8000` (or the host/port where the Python application is running)
 - **Purpose:** Provide read-only access to redacted `IntakeCall` records for human oversight and auditing of the AI intake process.
 - **Authentication:** Required for all endpoints. Supported methods: API Key (header) or JWT; see per-endpoint details below.
+
+**Note:** The voice pipeline (Twilio Media Streams, WebSocket at `/media`, TwiML at `/voice`, and Google Cloud STT, Vertex AI Gemini, and TTS) runs in the Node.js component and is documented in the [Twilio Media Streams setup](../setup/twilio_media_streams.md) and [deployment guide](deployment_guide.md).
 
 ---
 

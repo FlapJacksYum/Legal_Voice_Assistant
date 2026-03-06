@@ -5,13 +5,15 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "test": "node --test websocket_server.test.js stt_client.test.js"
+    "test": "node --test websocket_server.test.js stt_client.test.js gemini_client.test.js tts_client.test.js"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
     "@google-cloud/speech": "^7.3.0",
+    "@google-cloud/text-to-speech": "^6.4.0",
+    "@google-cloud/vertexai": "^1.10.0",
     "ws": "^8.18.0"
   }
 }

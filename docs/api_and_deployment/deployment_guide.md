@@ -2,6 +2,13 @@
 
 This guide covers prerequisites, building, deploying, and managing the Legal Intake Voice Service in local and production environments.
 
+## Architecture overview
+
+- **Python backend** — Database (IntakeCall), migrations, and the REST API (`/api/calls`) for attorney review of redacted call records. Served by the root `Dockerfile` and runs on a configurable port (e.g. 8000).
+- **Node.js voice component** — Twilio Media Streams WebSocket (`/media`), TwiML endpoint (`/voice`), and optional Google Cloud pipeline: Speech-to-Text (STT), Vertex AI Gemini (conversational logic), and Text-to-Speech (TTS) for playback. Runs separately (default port 8080). See [Twilio Media Streams setup](../setup/twilio_media_streams.md).
+
+Both can run on the same host or different hosts; the voice component only needs to be reachable by Twilio at a public `wss://` URL.
+
 ---
 
 ## Prerequisites
@@ -107,6 +114,30 @@ python -m uvicorn src.main:app --host 0.0.0.0 --port 8000
 
 (Replace `src.main:app` with the actual application entry point when the web server is implemented.)
 
+**Option D — Node.js voice component (Twilio Media Streams + STT):**
+
+The voice pipeline runs separately from the Python app. It serves the WebSocket at `/media` for Twilio and the TwiML endpoint at `/voice`.
+
+```bash
+cd src/nodejs
+npm install
+npm start
+# Listens on PORT (default 8080). WebSocket: ws://localhost:8080/media
+```
+
+Set `TWILIO_MEDIA_STREAM_WS_URL` (public `wss://` URL) so `/voice` returns valid TwiML. Set `GOOGLE_APPLICATION_CREDENTIALS` for STT and TTS; set `GOOGLE_CLOUD_PROJECT` to enable Gemini. Without these, the app still runs but does not transcribe or respond with AI. See [Twilio Media Streams setup](../setup/twilio_media_streams.md).
+
+Docker:
+
+```bash
+docker build -f src/nodejs/Dockerfile -t legal-intake-voice-node .
+docker run --rm -p 8080:8080 \
+  -e TWILIO_MEDIA_STREAM_WS_URL=wss://your-host/media \
+  -e GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json \
+  -v /path/to/key.json:/path/to/key.json:ro \
+  legal-intake-voice-node
+```
+
 ### 5. Deploy to production
 
 - **Docker Compose on a VM:** Use the same image and `docker compose -f docker-compose.prod.yml up -d` with production `DATABASE_URL`, secrets, and networking.
@@ -131,9 +162,13 @@ python -m uvicorn src.main:app --host 0.0.0.0 --port 8000
 | `TWILIO_AUTH_TOKEN` | When using Twilio | — | Twilio auth token (keep secret). |
 | `TWILIO_MEDIA_STREAM_WS_URL` | When using voice | — | Public WebSocket URL for Media Streams, e.g. `wss://your-host.example.com/media`. Required for the `/voice` TwiML endpoint. |
 | `WS_AUTH_TOKEN` | No | — | If set, WebSocket server requires this token (query or header). |
+| `GOOGLE_APPLICATION_CREDENTIALS` | For STT/TTS (Node.js) | — | Path to service account JSON key. When set, caller audio is streamed to Speech-to-Text and TTS can synthesize replies. If unset, the Node app still runs (WebSocket and `/voice`) but does not transcribe or speak. |
+| `GOOGLE_CLOUD_PROJECT` | For Gemini (Node.js) | — | GCP project ID. When set with credentials, Vertex AI (Gemini 1.5 Flash) is used for conversational logic. |
+| `GOOGLE_TTS_VOICE_NAME` | No (Node.js) | `en-US-Neural2-D` | TTS voice name; set to Custom Voice name when using attorney voice clone. |
+| `PORT` | No (Node.js) | `8080` | HTTP/WebSocket port for the Node.js voice component. |
 | Google Cloud / etc. | When used | — | Credentials for STT, Gemini, TTS, DLP. |
 
-Keep secrets in a secrets manager or deployment platform; avoid hardcoding.
+Keep secrets in a secrets manager or deployment platform; avoid hardcoding. For a full list of example variables, see `.env.example` in the project root.
 
 ### Managing configuration
 
@@ -187,6 +222,9 @@ Keep secrets in a secrets manager or deployment platform; avoid hardcoding.
 | App won’t start | Logs on startup; `DATABASE_URL` and port conflicts. |
 | 401 on `/api/calls` | API key or JWT configuration and header. |
 | DB errors | Migration status (`alembic current`), connectivity, and disk for SQLite. |
+| Node voice: no STT output | Set `GOOGLE_APPLICATION_CREDENTIALS` to a valid service account JSON path; ensure Speech-to-Text API is enabled in Google Cloud. |
+| Node voice: no AI reply / no TTS | Set `GOOGLE_CLOUD_PROJECT` for Gemini; ensure Vertex AI and Text-to-Speech APIs are enabled. Check `[Gemini]` and `[TTS]` in logs. |
+| Twilio not connecting to WebSocket | `TWILIO_MEDIA_STREAM_WS_URL` must be public `wss://`; phone number "A CALL COMES IN" must point to `/voice` or a TwiML Bin with the correct Stream URL. |
 | High latency | Database and external APIs (STT, Gemini, TTS); consider caching and timeouts. |
 
 For application-specific errors, consult the codebase and runbooks. Keep documentation in this repo and in your deployment pipeline up to date.

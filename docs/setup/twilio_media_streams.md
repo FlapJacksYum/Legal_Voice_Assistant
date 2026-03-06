@@ -65,6 +65,9 @@ Set these in your environment (e.g. `.env` or your deployment config). **Do not 
 | `TWILIO_AUTH_TOKEN` | Yes (for app use) | From same page; keep secret. |
 | `TWILIO_MEDIA_STREAM_WS_URL` | Yes (for `/voice` TwiML) | Public WebSocket URL, e.g. `wss://your-host.example.com/media`. Must be **wss://** and publicly reachable. |
 | `WS_AUTH_TOKEN` | No | If set, the WebSocket server requires this token (query `token` or header `X-Twilio-Token`). Omit for open dev; use in production. |
+| `GOOGLE_APPLICATION_CREDENTIALS` | No (for STT/TTS) | Path to Google Cloud service account JSON key. When set, caller audio is streamed to Speech-to-Text and TTS can synthesize responses. See [Deployment guide](../api_and_deployment/deployment_guide.md#configuration). |
+| `GOOGLE_CLOUD_PROJECT` | No (for Gemini) | GCP project ID. When set with credentials, Vertex AI (Gemini 1.5 Flash) is used for conversational logic; transcriptions are sent to Gemini and replies are synthesized and played to the caller. |
+| `GOOGLE_TTS_VOICE_NAME` | No | TTS voice name (e.g. Custom Voice for attorney clone). Default: `en-US-Neural2-D`. Set when using a pre-trained Custom Voice model. |
 
 - The Node.js Media Streams server does not use Account SID/Auth Token for the WebSocket connection itself; Twilio connects to you. Store them for future features (e.g. REST API to control calls) and for consistency with the task “Set up Twilio Account SID and Auth Token as environment variables.”
 - For local development, use a tunnel (e.g. [ngrok](https://ngrok.com)) so Twilio can reach both your HTTPS and WebSocket endpoints.
@@ -78,11 +81,13 @@ Set these in your environment (e.g. `.env` or your deployment config). **Do not 
 
 ## 5. Initial test call
 
-1. Start the Node.js app (see project README), with `TWILIO_MEDIA_STREAM_WS_URL` set to your public wss URL.
-2. Call your Twilio number from a phone.
-3. You should see:
-   - In the app logs: WebSocket connection opened, then `connected` and `start` (and optionally `media`) events from Twilio.
-   - The call remains connected; the app can receive and send audio (e.g. once STT/TTS are integrated).
+1. Start the Node.js app (see [project README](../../README.md)), with `TWILIO_MEDIA_STREAM_WS_URL` set to your public wss URL.
+2. Optionally set `GOOGLE_APPLICATION_CREDENTIALS` and `GOOGLE_CLOUD_PROJECT` to enable the full pipeline (STT → Gemini → TTS).
+3. Call your Twilio number from a phone.
+4. You should see:
+   - In the app logs: WebSocket connection opened, then `Stream started` and media events from Twilio.
+   - If STT is enabled: `[STT] Interim:` and `[STT] Final:` lines with transcribed speech.
+   - If Gemini is enabled: `[Gemini]:` with the AI reply; TTS streams the reply back to the caller as audio.
 
 If the connection fails, check:
 

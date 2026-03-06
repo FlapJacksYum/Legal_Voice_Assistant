@@ -6,6 +6,7 @@
 const http = require('http');
 const {
   createMediaWebSocketServer,
+  sendAudioChunk,
   DEFAULT_PORT,
   DEFAULT_PATH,
 } = require('./websocket_server.js');
@@ -13,6 +14,16 @@ const {
   createSpeechClient,
   startStreamingRecognizeWithRetry,
 } = require('./stt_client.js');
+const {
+  createVertexAI,
+  getGenerativeModel,
+  generateResponseWithRetry,
+  createConversationContext,
+} = require('./gemini_client.js');
+const {
+  createTtsClient,
+  synthesizeAndStream,
+} = require('./tts_client.js');
 
 const PORT = Number(process.env.PORT) || DEFAULT_PORT;
 
@@ -25,15 +36,67 @@ if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
   }
 }
 
+let geminiModel = null;
+if (process.env.GOOGLE_CLOUD_PROJECT && process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  try {
+    const vertex = createVertexAI({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
+    geminiModel = getGenerativeModel(vertex);
+  } catch (err) {
+    console.warn('Gemini disabled: could not create Vertex AI model:', err.message);
+  }
+}
+
+let ttsClient = null;
+if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  try {
+    ttsClient = createTtsClient();
+  } catch (err) {
+    console.warn('TTS disabled: could not create Text-to-Speech client:', err.message);
+  }
+}
+
 const sttStreamsByWs = new Map();
+const geminiContextByWs = new Map();
 
 function onMediaChunk(ws, base64Payload) {
   let session = sttStreamsByWs.get(ws);
   if (!session) {
     if (!speechClient) return;
+    let conversation = geminiContextByWs.get(ws);
+    if (!conversation) {
+      conversation = createConversationContext();
+      geminiContextByWs.set(ws, conversation);
+    }
     session = startStreamingRecognizeWithRetry(speechClient, {}, {
-      onTranscript: (text, isFinal) => {
+      onTranscript: async (text, isFinal) => {
         console.log(`[STT] ${isFinal ? 'Final' : 'Interim'}: ${text}`);
+        if (isFinal && text && geminiModel) {
+          const conversation = geminiContextByWs.get(ws);
+          if (conversation) {
+            conversation.appendUser(text);
+            try {
+              const history = conversation.getHistory().slice(0, -1);
+              const { text: responseText } = await generateResponseWithRetry(
+                geminiModel,
+                text,
+                history
+              );
+              conversation.appendModel(responseText);
+              console.log('[Gemini]:', responseText);
+              if (ttsClient && responseText) {
+                try {
+                  await synthesizeAndStream(ttsClient, responseText, (base64) => {
+                    sendAudioChunk(ws, base64);
+                  });
+                } catch (ttsErr) {
+                  console.error('[TTS] error:', ttsErr.message);
+                }
+              }
+            } catch (err) {
+              console.error('[Gemini] error:', err.message);
+            }
+          }
+        }
       },
       onError: (err) => {
         console.error('[STT] error:', err.message);
@@ -50,6 +113,7 @@ function onWsClose(ws) {
     session.end();
     sttStreamsByWs.delete(ws);
   }
+  geminiContextByWs.delete(ws);
 }
 
 /**
