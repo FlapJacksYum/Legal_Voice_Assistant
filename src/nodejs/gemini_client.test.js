@@ -12,6 +12,9 @@ const {
   generateResponse,
   createConversationContext,
   extractActionTags,
+  stripActionTags,
+  isUplDeflection,
+  UPL_DEFLECT_TAG,
   DEFAULT_MODEL,
   DEFAULT_LOCATION,
   DEFAULT_SYSTEM_PROMPT,
@@ -120,5 +123,48 @@ describe('gemini_client', () => {
   it('DEFAULT_SYSTEM_PROMPT mentions intake and no legal advice', () => {
     assert.ok(DEFAULT_SYSTEM_PROMPT.includes('intake'));
     assert.ok(DEFAULT_SYSTEM_PROMPT.includes('legal advice'));
+  });
+
+  it('stripActionTags removes [tag] tokens for TTS', () => {
+    const out = stripActionTags('That is important. [deflect_upl] I will note it for the attorney.');
+    assert.ok(!out.includes('deflect_upl'));
+    assert.ok(out.includes('note it for the attorney'));
+  });
+
+  it('stripActionTags handles multiple tags and extra spaces', () => {
+    const out = stripActionTags('Hello [ask_income] [deflect_upl]  Next question.');
+    assert.strictEqual(out, 'Hello Next question.');
+  });
+
+  it('isUplDeflection returns true when deflect_upl in actionTags', () => {
+    assert.strictEqual(isUplDeflection(['ask_income', 'deflect_upl']), true);
+    assert.strictEqual(isUplDeflection(['deflect_upl']), true);
+  });
+
+  it('isUplDeflection returns false when deflect_upl not in actionTags', () => {
+    assert.strictEqual(isUplDeflection(['ask_income']), false);
+    assert.strictEqual(isUplDeflection([]), false);
+    assert.strictEqual(isUplDeflection(undefined), false);
+  });
+
+  it('UPL_DEFLECT_TAG is deflect_upl', () => {
+    assert.strictEqual(UPL_DEFLECT_TAG, 'deflect_upl');
+  });
+
+  it('createConversationContext tracks flagged questions for attorney review', () => {
+    const ctx = createConversationContext();
+    assert.deepStrictEqual(ctx.getFlaggedQuestions(), []);
+    ctx.appendFlaggedQuestion('Will I lose my house?');
+    ctx.appendFlaggedQuestion('Should I file Chapter 7?');
+    assert.deepStrictEqual(ctx.getFlaggedQuestions(), ['Will I lose my house?', 'Should I file Chapter 7?']);
+    ctx.clear();
+    assert.deepStrictEqual(ctx.getFlaggedQuestions(), []);
+  });
+
+  it('appendFlaggedQuestion ignores empty string', () => {
+    const ctx = createConversationContext();
+    ctx.appendFlaggedQuestion('');
+    ctx.appendFlaggedQuestion('  ');
+    assert.strictEqual(ctx.getFlaggedQuestions().length, 0);
   });
 });

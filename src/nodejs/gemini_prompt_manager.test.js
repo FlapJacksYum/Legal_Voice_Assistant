@@ -24,7 +24,7 @@ describe('gemini_prompt_manager', () => {
     assert.ok(DEFAULT_BASE_PROMPT.includes('intake assistant'));
     assert.ok(DEFAULT_BASE_PROMPT.includes('bankruptcy'));
     assert.ok(DEFAULT_BASE_PROMPT.includes('do not give legal advice'));
-    assert.ok(DEFAULT_BASE_PROMPT.includes('note it for the attorney'));
+    assert.ok(DEFAULT_BASE_PROMPT.includes('deflect_upl') || DEFAULT_BASE_PROMPT.includes('attorney review'));
   });
 
   it('buildSystemPrompt without RAG returns base only', () => {

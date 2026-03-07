@@ -8,12 +8,14 @@ AI-driven intake service for a bankruptcy law practice: automates initial client
 ├── src/                 # Application source
 │   ├── models/          # SQLAlchemy models (e.g. IntakeCall)
 │   ├── nodejs/          # Node.js voice pipeline (Twilio Media Streams, STT, Gemini, TTS)
-│   │   ├── index.js     # HTTP server, /voice TwiML, WebSocket at /media
+│   │   ├── index.js     # HTTP server, /voice TwiML, WebSocket at /media; greeting, VAD, UPL flow
 │   │   ├── websocket_server.js   # Twilio Media Streams WebSocket handler
 │   │   ├── stt_client.js         # Google Cloud Speech-to-Text streaming client
-│   │   ├── gemini_client.js      # Vertex AI Gemini 1.5 Flash for conversational logic
+│   │   ├── gemini_client.js      # Vertex AI Gemini 1.5 Flash, action tags, conversation context
 │   │   ├── gemini_prompt_manager.js  # System prompt + RAG (intake guidelines, deflection scripts)
+│   │   ├── upl_detector.js       # UPL detection, deflection text for TTS, tagging for attorney review
 │   │   ├── greeting.js           # Mandatory AI disclosure greeting (configurable attorney name)
+│   │   ├── vad.js                # Voice Activity Detection (mulaw 8kHz) for greeting barge-in
 │   │   └── tts_client.js         # Google Cloud Text-to-Speech (Custom Voice) for playback
 │   ├── config/
 │   │   └── rag/         # RAG content for Gemini (intake_guidelines.md, deflection_scripts.json)
@@ -91,6 +93,7 @@ cd src/nodejs && npm install && npm start
 #   GOOGLE_TTS_VOICE_NAME — optional; Custom Voice name when using cloned attorney voice
 # Optional: ATTORNEY_NAME — name used in the AI disclosure greeting (default: "the attorney")
 # Optional: RAG_CONFIG_DIR — path to RAG files (default: config/rag with intake guidelines and deflection scripts)
+# Greeting is played on connect; VAD allows callers to interrupt. UPL questions are deflected and tagged for attorney review.
 ```
 
 Or with Docker:

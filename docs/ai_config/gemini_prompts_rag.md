@@ -18,11 +18,7 @@ The AI is defined as the **attorney's intake assistant** for a bankruptcy law pr
 - Use a professional, empathetic tone appropriate for callers in financial distress.
 - Speak in short, voice-optimized sentences (no long paragraphs).
 
-**Current implementation:** The persona is established in the system instruction passed to Vertex AI Gemini. Example (from `src/nodejs/gemini_client.js`):
-
-```javascript
-const DEFAULT_SYSTEM_PROMPT = `You are an AI intake assistant for a bankruptcy law practice. Your role is to gather initial information from callers only. You do not give legal advice. Keep responses concise and suitable for voice (short sentences). Be empathetic and professional.`;
-```
+**Current implementation:** The persona and UPL rules are established in the system instruction. The base prompt lives in `src/nodejs/gemini_prompt_manager.js` (`DEFAULT_BASE_PROMPT`). It instructs Gemini to use pre-approved deflection scripts and to include the tag `[deflect_upl]` when the caller asks for legal advice, so the system can flag the question for attorney review. The fallback in `src/nodejs/gemini_client.js` is a shorter default used when the prompt manager is not loaded.
 
 ### 1.2 Role and Purpose
 
@@ -214,8 +210,10 @@ The application can then parse `[tone_empathetic]` and pass SSML or parameters t
 
 | Resource | Description |
 |----------|-------------|
-| `src/nodejs/gemini_client.js` | Vertex AI client, `getGenerativeModel`, `buildContents`, `generateResponse`, `extractActionTags` |
+| `src/nodejs/gemini_client.js` | Vertex AI client, `getGenerativeModel`, `buildContents`, `generateResponse`, `extractActionTags`, `stripActionTags`, `isUplDeflection`, `createConversationContext` (flagged questions). |
 | `src/nodejs/gemini_prompt_manager.js` | Builds system prompt from base + RAG; loads `config/rag/intake_guidelines.md` and `config/rag/deflection_scripts.json`; exports `getSystemInstruction()` for Gemini. |
-| `src/nodejs/index.js` | WebSocket server, per-call conversation context, STT → Gemini → TTS flow; uses `getSystemInstruction()` from prompt manager. |
+| `src/nodejs/upl_detector.js` | UPL detection and deflection: `processGeminiResponse(responseText, actionTags, userMessage)` returns `{ uplDetected, textForTts, questionToFlag }`; used by the pipeline to tag questions for attorney review and strip action tags before TTS. |
+| `src/nodejs/index.js` | WebSocket server, per-call conversation context, greeting + VAD (barge-in), STT → Gemini → TTS flow; uses `getSystemInstruction()` and `processGeminiResponse()` from upl_detector. |
+| `src/nodejs/vad.js` | Voice Activity Detection (mulaw 8kHz) for greeting interruption. |
 | `docs/api_and_deployment/deployment_guide.md` | Deployment and environment (e.g. `GOOGLE_CLOUD_PROJECT` for Gemini) |
 | `docs/setup/twilio_media_streams.md` | Twilio and pipeline overview (STT, Gemini, TTS) |

@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "test": "node --test websocket_server.test.js stt_client.test.js gemini_client.test.js gemini_prompt_manager.test.js greeting.test.js tts_client.test.js"
+    "test": "node --test websocket_server.test.js stt_client.test.js gemini_client.test.js gemini_prompt_manager.test.js greeting.test.js vad.test.js tts_client.test.js upl_detector.test.js"
   },
   "engines": {
     "node": ">=18"

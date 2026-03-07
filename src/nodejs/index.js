@@ -20,12 +20,14 @@ const {
   generateResponseWithRetry,
   createConversationContext,
 } = require('./gemini_client.js');
+const { processGeminiResponse } = require('./upl_detector.js');
 const { getSystemInstruction } = require('./gemini_prompt_manager.js');
 const {
   createTtsClient,
   synthesizeAndStream,
 } = require('./tts_client.js');
 const { getGreetingText } = require('./greeting.js');
+const { createVadState, processChunk: processVadChunk } = require('./vad.js');
 
 const PORT = Number(process.env.PORT) || DEFAULT_PORT;
 
@@ -60,7 +62,7 @@ if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
 
 const sttStreamsByWs = new Map();
 const geminiContextByWs = new Map();
-/** @type {Map<import('ws').WebSocket, { greetingInProgress: boolean, greetingAborted: boolean }>} */
+/** @type {Map<import('ws').WebSocket, { greetingInProgress: boolean, greetingAborted: boolean, vadState?: object }>} */
 const greetingStateByWs = new Map();
 
 function onMediaChunk(ws, base64Payload) {
@@ -72,30 +74,45 @@ function onMediaChunk(ws, base64Payload) {
       conversation = createConversationContext();
       geminiContextByWs.set(ws, conversation);
     }
-    const greetingState = { greetingInProgress: true, greetingAborted: false };
+    const greetingState = {
+      greetingInProgress: true,
+      greetingAborted: false,
+      vadState: createVadState(),
+    };
     greetingStateByWs.set(ws, greetingState);
 
     session = startStreamingRecognizeWithRetry(speechClient, {}, {
       onTranscript: async (text, isFinal) => {
         console.log(`[STT] ${isFinal ? 'Final' : 'Interim'}: ${text}`);
+        const state = greetingStateByWs.get(ws);
+        if (state && state.greetingInProgress && text && text.trim().length > 0) {
+          state.greetingAborted = true;
+        }
         if (isFinal && text && geminiModel) {
-          const state = greetingStateByWs.get(ws);
-          if (state && state.greetingInProgress) state.greetingAborted = true;
           const conversation = geminiContextByWs.get(ws);
           if (conversation) {
             conversation.appendUser(text);
             try {
               const history = conversation.getHistory().slice(0, -1);
-              const { text: responseText } = await generateResponseWithRetry(
+              const { text: responseText, actionTags } = await generateResponseWithRetry(
                 geminiModel,
                 text,
                 history
               );
+              const { uplDetected, textForTts, questionToFlag } = processGeminiResponse(
+                responseText,
+                actionTags,
+                text
+              );
               conversation.appendModel(responseText);
+              if (uplDetected && questionToFlag) {
+                conversation.appendFlaggedQuestion(questionToFlag);
+                console.log('[UPL] Question flagged for attorney review:', questionToFlag);
+              }
               console.log('[Gemini]:', responseText);
-              if (ttsClient && responseText) {
+              if (ttsClient && textForTts) {
                 try {
-                  await synthesizeAndStream(ttsClient, responseText, (base64) => {
+                  await synthesizeAndStream(ttsClient, textForTts, (base64) => {
                     sendAudioChunk(ws, base64);
                   });
                 } catch (ttsErr) {
@@ -132,7 +149,17 @@ function onMediaChunk(ws, base64Payload) {
       greetingState.greetingInProgress = false;
     }
   }
-  session.writeAudioChunk(base64Payload);
+
+  const greetingState = greetingStateByWs.get(ws);
+  if (greetingState && greetingState.greetingInProgress && greetingState.vadState) {
+    const { speechDetected } = processVadChunk(base64Payload, greetingState.vadState);
+    if (speechDetected) {
+      greetingState.greetingAborted = true;
+    }
+  }
+
+  session = sttStreamsByWs.get(ws);
+  if (session) session.writeAudioChunk(base64Payload);
 }
 
 function onWsClose(ws) {

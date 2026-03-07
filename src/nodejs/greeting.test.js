@@ -44,4 +44,12 @@ describe('greeting', () => {
   it('DEFAULT_ATTORNEY_LABEL is the attorney', () => {
     assert.strictEqual(DEFAULT_ATTORNEY_LABEL, 'the attorney');
   });
+
+  it('greeting text is fixed template for mandatory disclosure', () => {
+    const a = getGreetingText({ attorneyName: 'A' });
+    const b = getGreetingText({ attorneyName: 'B' });
+    assert.ok(a.startsWith('Hello, you\'ve reached the office of A.'));
+    assert.ok(b.startsWith('Hello, you\'ve reached the office of B.'));
+    assert.ok(a.includes('AI intake assistant') && b.includes('AI intake assistant'));
+  });
 });

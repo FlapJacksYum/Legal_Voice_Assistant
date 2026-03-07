@@ -91,6 +91,9 @@ async function generateResponse(model, userText, history = []) {
   return { text, actionTags };
 }
 
+/** Action tag for UPL deflection; when present, the caller's question is flagged for attorney review. */
+const UPL_DEFLECT_TAG = 'deflect_upl';
+
 /**
  * Naive extraction of action tags from response (e.g. [ask_income], [deflect_upl]).
  * Can be extended when BE-006/BE-009 define tag format.
@@ -105,6 +108,25 @@ function extractActionTags(text) {
     tags.push(m[1]);
   }
   return tags;
+}
+
+/**
+ * Remove action tags from text so it can be sent to TTS (caller should not hear "[deflect_upl]" etc.).
+ * @param {string} text - Model response that may contain [tag] tokens
+ * @returns {string}
+ */
+function stripActionTags(text) {
+  if (typeof text !== 'string') return '';
+  return text.replace(/\s*\[[a-z_]+\]\s*/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Whether the response indicates a UPL deflection (caller asked for legal advice).
+ * @param {string[]} [actionTags]
+ * @returns {boolean}
+ */
+function isUplDeflection(actionTags) {
+  return Array.isArray(actionTags) && actionTags.includes(UPL_DEFLECT_TAG);
 }
 
 /**
@@ -140,10 +162,11 @@ async function generateResponseWithRetry(model, userText, history = [], options 
 }
 
 /**
- * In-memory conversation context: append turns and return history for API.
+ * In-memory conversation context: append turns, return history for API, and track flagged UPL questions.
  */
 function createConversationContext() {
   const turns = [];
+  const flaggedQuestions = [];
   return {
     appendUser(text) {
       if ((text || '').trim()) turns.push({ role: 'user', text: text.trim() });
@@ -154,8 +177,18 @@ function createConversationContext() {
     getHistory() {
       return [...turns];
     },
+    /** Flag a caller question for attorney review (UPL deflection). */
+    appendFlaggedQuestion(questionText) {
+      const q = (questionText || '').trim();
+      if (q) flaggedQuestions.push(q);
+    },
+    /** Get questions flagged for attorney review (e.g. for IntakeCall.flagged_questions_summary). */
+    getFlaggedQuestions() {
+      return [...flaggedQuestions];
+    },
     clear() {
       turns.length = 0;
+      flaggedQuestions.length = 0;
     },
   };
 }
@@ -168,6 +201,9 @@ module.exports = {
   generateResponseWithRetry,
   createConversationContext,
   extractActionTags,
+  stripActionTags,
+  isUplDeflection,
+  UPL_DEFLECT_TAG,
   DEFAULT_MODEL,
   DEFAULT_LOCATION,
   DEFAULT_SYSTEM_PROMPT,
