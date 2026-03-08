@@ -7,7 +7,9 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert');
 const {
   getGreetingText,
+  getClosingText,
   DEFAULT_GREETING_TEMPLATE,
+  DEFAULT_CLOSING_TEMPLATE,
   ATTORNEY_NAME_ENV,
   DEFAULT_ATTORNEY_LABEL,
 } = require('./greeting.js');
@@ -51,5 +53,17 @@ describe('greeting', () => {
     assert.ok(a.startsWith('Hello, you\'ve reached the office of A.'));
     assert.ok(b.startsWith('Hello, you\'ve reached the office of B.'));
     assert.ok(a.includes('AI intake assistant') && b.includes('AI intake assistant'));
+  });
+
+  it('getClosingText returns attorney review and next steps message', () => {
+    const text = getClosingText();
+    assert.ok(text.includes('attorney'));
+    assert.ok(text.includes('review'));
+    assert.ok(text.includes('call you back'));
+    assert.ok(text.includes('Thank you'));
+  });
+
+  it('getClosingText uses DEFAULT_CLOSING_TEMPLATE content', () => {
+    assert.ok(DEFAULT_CLOSING_TEMPLATE.includes('review') && DEFAULT_CLOSING_TEMPLATE.includes('Thank you'));
   });
 });

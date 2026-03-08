@@ -14,12 +14,15 @@ AI-driven intake service for a bankruptcy law practice: automates initial client
 │   │   ├── gemini_client.js      # Vertex AI Gemini 1.5 Flash, action tags, conversation context
 │   │   ├── gemini_prompt_manager.js  # System prompt + RAG (intake guidelines, deflection scripts)
 │   │   ├── upl_detector.js       # UPL detection, deflection text for TTS, tagging for attorney review
+│   │   ├── tone_adjuster.js      # Stress keyword detection and SSML for empathetic TTS tone
 │   │   ├── greeting.js           # Mandatory AI disclosure greeting (configurable attorney name)
 │   │   ├── vad.js                # Voice Activity Detection (mulaw 8kHz) for greeting barge-in
-│   │   └── tts_client.js         # Google Cloud Text-to-Speech (Custom Voice) for playback
+│   │   └── tts_client.js         # Google Cloud Text-to-Speech (Custom Voice, SSML) for playback
 │   ├── config/
 │   │   └── rag/         # RAG content for Gemini (intake_guidelines.md, deflection_scripts.json)
-│   └── database.py      # DB engine and session
+│   ├── api/              # FastAPI routes (e.g. GET /api/calls for attorney review)
+│   ├── main.py           # FastAPI app entrypoint
+│   └── database.py       # DB engine and session
 ├── migrations/          # Alembic migrations
 ├── tests/               # Pytest tests (Python)
 ├── docs/                # Documentation (API, deployment, setup)
@@ -72,6 +75,14 @@ AI-driven intake service for a bankruptcy law practice: automates initial client
    pytest tests/ -v
    ```
 
+6. **Run the Python API** (attorney review of redacted calls)
+
+   ```bash
+   export API_KEY=your-api-key   # required for GET /api/calls
+   uvicorn src.main:app --host 127.0.0.1 --port 8000
+   ```
+   Then: `GET http://localhost:8000/api/calls` with header `X-API-Key: your-api-key`. See [docs/api_and_deployment/api_endpoints.md](docs/api_and_deployment/api_endpoints.md).
+
 ## Docker
 
 **Python app (current backend):**
@@ -94,6 +105,7 @@ cd src/nodejs && npm install && npm start
 # Optional: ATTORNEY_NAME — name used in the AI disclosure greeting (default: "the attorney")
 # Optional: RAG_CONFIG_DIR — path to RAG files (default: config/rag with intake guidelines and deflection scripts)
 # Greeting is played on connect; VAD allows callers to interrupt. UPL questions are deflected and tagged for attorney review.
+# When callers mention high-stress keywords (e.g. foreclosure, garnishment), the next TTS response uses empathetic SSML (slower, calmer tone).
 ```
 
 Or with Docker:

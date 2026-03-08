@@ -170,6 +170,8 @@ docker run --rm -p 8080:8080 \
 | `PORT` | No (Node.js) | `8080` | HTTP/WebSocket port for the Node.js voice component. |
 | Google Cloud / etc. | When used | — | Credentials for STT, Gemini, TTS, DLP. |
 
+**Voice pipeline behavior:** When the caller’s transcription contains high-stress financial keywords (e.g. foreclosure, garnishment, sheriff sale), the next AI response is synthesized with empathetic SSML (slightly lower pitch, slower rate) via `tone_adjuster.js`. No extra env is required; the keyword list is defined in code.
+
 Keep secrets in a secrets manager or deployment platform; avoid hardcoding. For a full list of example variables, see `.env.example` in the project root.
 
 ### Managing configuration

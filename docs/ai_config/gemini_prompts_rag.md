@@ -193,7 +193,7 @@ If the model is instructed to emit a tag when it detects stress-related language
 If the caller mentions foreclosure, garnishment, sheriff sale, or similar high-stress events, include [tone_empathetic] in your response so the system can adjust voice tone. Keep your wording supportive and brief.
 ```
 
-The application can then parse `[tone_empathetic]` and pass SSML or parameters to the TTS layer (see BE-008).
+The application implements **stress-keyword–based tone adjustment** (BE-008): when the *caller’s* transcription contains high-stress keywords (e.g. foreclosure, garnishment, sheriff sale), the pipeline wraps the next TTS input in SSML (`<prosody rate="slow" pitch="-2st">`) so the synthesized voice is calmer and more empathetic. This is done in `src/nodejs/tone_adjuster.js`; no Gemini tag is required. Optionally, the prompt can still instruct Gemini to use a tag like `[tone_empathetic]` for future extensions.
 
 ---
 
@@ -213,7 +213,8 @@ The application can then parse `[tone_empathetic]` and pass SSML or parameters t
 | `src/nodejs/gemini_client.js` | Vertex AI client, `getGenerativeModel`, `buildContents`, `generateResponse`, `extractActionTags`, `stripActionTags`, `isUplDeflection`, `createConversationContext` (flagged questions). |
 | `src/nodejs/gemini_prompt_manager.js` | Builds system prompt from base + RAG; loads `config/rag/intake_guidelines.md` and `config/rag/deflection_scripts.json`; exports `getSystemInstruction()` for Gemini. |
 | `src/nodejs/upl_detector.js` | UPL detection and deflection: `processGeminiResponse(responseText, actionTags, userMessage)` returns `{ uplDetected, textForTts, questionToFlag }`; used by the pipeline to tag questions for attorney review and strip action tags before TTS. |
-| `src/nodejs/index.js` | WebSocket server, per-call conversation context, greeting + VAD (barge-in), STT → Gemini → TTS flow; uses `getSystemInstruction()` and `processGeminiResponse()` from upl_detector. |
+| `src/nodejs/index.js` | WebSocket server, per-call conversation context, greeting + VAD (barge-in), STT → Gemini → TTS flow; uses `getSystemInstruction()`, `processGeminiResponse()`, and `getTtsOptionsForTone()` for empathetic tone. |
+| `src/nodejs/tone_adjuster.js` | Stress keyword detection and SSML wrapping for empathetic TTS: `hasStressKeywords()`, `wrapWithEmpatheticSsml()`, `getTtsOptionsForTone()`. |
 | `src/nodejs/vad.js` | Voice Activity Detection (mulaw 8kHz) for greeting interruption. |
 | `docs/api_and_deployment/deployment_guide.md` | Deployment and environment (e.g. `GOOGLE_CLOUD_PROJECT` for Gemini) |
 | `docs/setup/twilio_media_streams.md` | Twilio and pipeline overview (STT, Gemini, TTS) |

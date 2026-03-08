@@ -79,4 +79,16 @@ describe('upl_detector', () => {
     }
     assert.deepStrictEqual(ctx.getFlaggedQuestions(), ['Will the court take my car?']);
   });
+
+  it('processGeminiResponse with conclude_call sets concludeCall true', () => {
+    const response = "Thank you. We have what we need. [conclude_call]";
+    const out = processGeminiResponse(response, undefined);
+    assert.strictEqual(out.concludeCall, true);
+    assert.ok(!out.textForTts.includes('[conclude_call]'));
+  });
+
+  it('processGeminiResponse without conclude_call sets concludeCall false', () => {
+    const out = processGeminiResponse('What is your monthly income?', []);
+    assert.strictEqual(out.concludeCall, false);
+  });
 });

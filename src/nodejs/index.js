@@ -24,10 +24,12 @@ const { processGeminiResponse } = require('./upl_detector.js');
 const { getSystemInstruction } = require('./gemini_prompt_manager.js');
 const {
   createTtsClient,
+  getSynthesisRequest,
   synthesizeAndStream,
 } = require('./tts_client.js');
-const { getGreetingText } = require('./greeting.js');
+const { getGreetingText, getClosingText } = require('./greeting.js');
 const { createVadState, processChunk: processVadChunk } = require('./vad.js');
+const { getTtsOptionsForTone } = require('./tone_adjuster.js');
 
 const PORT = Number(process.env.PORT) || DEFAULT_PORT;
 
@@ -64,6 +66,8 @@ const sttStreamsByWs = new Map();
 const geminiContextByWs = new Map();
 /** @type {Map<import('ws').WebSocket, { greetingInProgress: boolean, greetingAborted: boolean, vadState?: object }>} */
 const greetingStateByWs = new Map();
+/** When true, intake is complete and we should not process further user input (closing or already closed). */
+const callConcludedByWs = new Map();
 
 function onMediaChunk(ws, base64Payload) {
   let session = sttStreamsByWs.get(ws);
@@ -89,6 +93,10 @@ function onMediaChunk(ws, base64Payload) {
           state.greetingAborted = true;
         }
         if (isFinal && text && geminiModel) {
+          if (callConcludedByWs.get(ws)) {
+            if (state) state.greetingInProgress = false;
+            return;
+          }
           const conversation = geminiContextByWs.get(ws);
           if (conversation) {
             conversation.appendUser(text);
@@ -99,7 +107,7 @@ function onMediaChunk(ws, base64Payload) {
                 text,
                 history
               );
-              const { uplDetected, textForTts, questionToFlag } = processGeminiResponse(
+              const { uplDetected, concludeCall, textForTts, questionToFlag } = processGeminiResponse(
                 responseText,
                 actionTags,
                 text
@@ -109,12 +117,30 @@ function onMediaChunk(ws, base64Payload) {
                 conversation.appendFlaggedQuestion(questionToFlag);
                 console.log('[UPL] Question flagged for attorney review:', questionToFlag);
               }
+              if (concludeCall) {
+                callConcludedByWs.set(ws, true);
+                console.log('[Call] Conclusion signaled by Gemini; playing closing.');
+              }
               console.log('[Gemini]:', responseText);
-              if (ttsClient && textForTts) {
+              if (ttsClient) {
                 try {
-                  await synthesizeAndStream(ttsClient, textForTts, (base64) => {
-                    sendAudioChunk(ws, base64);
-                  });
+                  if (textForTts) {
+                    const toneOpts = getTtsOptionsForTone(textForTts, text);
+                    const requestOverrides = toneOpts
+                      ? getSynthesisRequest({ ssml: toneOpts.ssml })
+                      : undefined;
+                    await synthesizeAndStream(ttsClient, textForTts, (base64) => {
+                      sendAudioChunk(ws, base64);
+                    }, requestOverrides ? { requestOverrides } : undefined);
+                  }
+                  if (concludeCall) {
+                    const closingText = getClosingText();
+                    if (closingText) {
+                      await synthesizeAndStream(ttsClient, closingText, (base64) => {
+                        sendAudioChunk(ws, base64);
+                      });
+                    }
+                  }
                 } catch (ttsErr) {
                   console.error('[TTS] error:', ttsErr.message);
                 }
@@ -170,6 +196,7 @@ function onWsClose(ws) {
   }
   geminiContextByWs.delete(ws);
   greetingStateByWs.delete(ws);
+  callConcludedByWs.delete(ws);
 }
 
 /**

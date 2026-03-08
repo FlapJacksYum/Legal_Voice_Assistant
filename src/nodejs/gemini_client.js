@@ -94,6 +94,9 @@ async function generateResponse(model, userText, history = []) {
 /** Action tag for UPL deflection; when present, the caller's question is flagged for attorney review. */
 const UPL_DEFLECT_TAG = 'deflect_upl';
 
+/** Action tag for call conclusion; when present, sufficient intake is gathered and the call should end gracefully. */
+const CONCLUDE_CALL_TAG = 'conclude_call';
+
 /**
  * Naive extraction of action tags from response (e.g. [ask_income], [deflect_upl]).
  * Can be extended when BE-006/BE-009 define tag format.
@@ -127,6 +130,15 @@ function stripActionTags(text) {
  */
 function isUplDeflection(actionTags) {
   return Array.isArray(actionTags) && actionTags.includes(UPL_DEFLECT_TAG);
+}
+
+/**
+ * Whether the response indicates call conclusion (intake complete; play closing and end call).
+ * @param {string[]} [actionTags]
+ * @returns {boolean}
+ */
+function isConcludeCall(actionTags) {
+  return Array.isArray(actionTags) && actionTags.includes(CONCLUDE_CALL_TAG);
 }
 
 /**
@@ -203,7 +215,9 @@ module.exports = {
   extractActionTags,
   stripActionTags,
   isUplDeflection,
+  isConcludeCall,
   UPL_DEFLECT_TAG,
+  CONCLUDE_CALL_TAG,
   DEFAULT_MODEL,
   DEFAULT_LOCATION,
   DEFAULT_SYSTEM_PROMPT,
